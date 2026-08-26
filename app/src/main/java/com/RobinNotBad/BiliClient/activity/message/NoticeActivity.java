@@ -29,6 +29,15 @@ public class NoticeActivity extends RefreshListActivity {
         pageType = intent.getStringExtra("type");
         messageList = new ArrayList<>();
 
+        loadFirstPage();
+
+        // 支持下拉刷新，获取最新消息
+        setOnRefreshListener(this::loadFirstPage);
+    }
+
+    private void loadFirstPage() {
+        messageList = new ArrayList<>();
+        setRefreshing(true);
         CenterThreadPool.run(() -> {
             try {
                 Pair<MessageCard.Cursor, List<MessageCard>> pair;
@@ -60,7 +69,12 @@ public class NoticeActivity extends RefreshListActivity {
                     setOnLoadMoreListener(this::continueLoading);
                 });
             } catch (Exception e) {
+                // 加载失败也要停止转圈，避免页面一直处于加载状态
                 e.printStackTrace();
+                runOnUiThread(() -> {
+                    setRefreshing(false);
+                    if (messageList.isEmpty()) showEmptyView();
+                });
             }
         });
     }

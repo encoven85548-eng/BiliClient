@@ -1,6 +1,7 @@
 package com.RobinNotBad.BiliClient.api;
 
 import android.text.SpannableString;
+import android.util.Log;
 import android.util.Pair;
 
 import com.RobinNotBad.BiliClient.model.MessageCard;
@@ -16,10 +17,20 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import okhttp3.Response;
 
 public class MessageApi {
+    private static final Pattern BV_PATTERN = Pattern.compile("BV[0-9A-Za-z]+");
+
+    /** 从 uri 中提取视频 BV 号；若非视频 uri 则返回空字符串 */
+    private static String extractBvid(String uri) {
+        if (uri == null) return "";
+        Matcher matcher = BV_PATTERN.matcher(uri);
+        return matcher.find() ? matcher.group() : "";
+    }
     private static JSONObject getUnreadData() throws IOException, JSONException {
         String url = "https://api.bilibili.com/x/msgfeed/unread";
         JSONObject all = NetWorkUtil.getJson(url);
@@ -85,6 +96,7 @@ public class MessageApi {
             // 所有消息
             ArrayList<MessageCard> totalArray = new ArrayList<>();
             for (int i = 0; i < all.getJSONObject("data").getJSONObject("total").getJSONArray("items").length(); i++) {
+                try {
                 JSONObject object = ((JSONObject) all.getJSONObject("data").getJSONObject("total").getJSONArray("items")
                         .get(i));
                 MessageCard likeInfo = new MessageCard();
@@ -113,7 +125,7 @@ public class MessageApi {
                         likeInfo.content = "等总共 " + object.getLong("counts") + " 人点赞了你的视频";
                         VideoCard videoCard = new VideoCard();
                         videoCard.aid = 0;
-                        videoCard.bvid = item.getString("uri").replace("https://www.bilibili.com/video/BV", "");
+                        videoCard.bvid = extractBvid(item.getString("uri"));
                         videoCard.upName = "";
                         videoCard.title = item.getString("title");
                         videoCard.cover = item.getString("image");
@@ -132,8 +144,11 @@ public class MessageApi {
                         replyInfo.upReplied = false;
                         replyInfo.liked = false;
                         replyInfo.childCount = 0;
-                        replyInfo.ofBvid = item.getString("uri").replace("https://www.bilibili.com/video/", "");
+                        replyInfo.ofBvid = extractBvid(item.getString("uri"));
                         replyInfo.childMsgList = new ArrayList<>();
+                        Log.e("MessageApi", "点赞评论 item: uri=" + item.optString("uri") + " businessId=" + likeInfo.businessId
+                                + " itemType=" + likeInfo.itemType + " subjectId=" + likeInfo.subjectId + " sourceId=" + likeInfo.sourceId
+                                + " rootId=" + likeInfo.rootId + " ofBvid=" + replyInfo.ofBvid);
                         likeInfo.replyInfo = replyInfo;
                         break;
                     case "dynamic":
@@ -168,6 +183,10 @@ public class MessageApi {
 
                 likeInfo.getType = MessageCard.GET_TYPE_LIKE;
                 totalArray.add(likeInfo);
+                } catch (Exception e) {
+                    // 单条消息解析失败不影响整个列表，跳过该条
+                    Log.e("MessageApi", "解析点赞消息失败: " + e.getMessage());
+                }
             }
 
             JSONObject cursor = all.getJSONObject("data").optJSONObject("cursor");

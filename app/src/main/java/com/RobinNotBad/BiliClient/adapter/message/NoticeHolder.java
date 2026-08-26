@@ -3,6 +3,7 @@ package com.RobinNotBad.BiliClient.adapter.message;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
+import android.text.TextUtils;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
@@ -106,10 +107,13 @@ public class NoticeHolder extends RecyclerView.ViewHolder {
                         long seekReply = message.rootId == 0 ? message.sourceId : message.rootId;
                         switch (message.businessId) {
                             case ReplyApi.REPLY_TYPE_VIDEO_CHILD:
-                                MsgUtil.showMsg("视频的子评论暂时无法定位，也许以后会做吧……");
-                                //Todo 定位子评论 MessageApi:70 可拆分native_uri获得id
                             case ReplyApi.REPLY_TYPE_VIDEO:
-                                TerminalContext.getInstance().enterVideoDetailPage(context, 0, childReply.ofBvid, null, seekReply);
+                                // 视频评论/子评论：有 BV 号则跳转视频，否则提示无法定位
+                                if (TextUtils.isEmpty(childReply.ofBvid)) {
+                                    MsgUtil.showMsg("该评论对应的视频无法定位");
+                                } else {
+                                    TerminalContext.getInstance().enterVideoDetailPage(context, 0, childReply.ofBvid, null, seekReply);
+                                }
                                 break;
                             case ReplyApi.REPLY_TYPE_DYNAMIC_CHILD:
                                 MsgUtil.showMsg("动态的子评论暂时无法跳转，也许以后会做吧……");

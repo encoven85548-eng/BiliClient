@@ -142,10 +142,12 @@ public class SettingsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
                 desc.setVisibility(View.VISIBLE);
             }
             switchMaterial.setText(settingSection.name);
-            switchMaterial.setOnCheckedChangeListener(
-                    (buttonView, isChecked) -> SharedPreferencesUtil.putBoolean(settingSection.id, isChecked));
+            // 先移除监听器再 setChecked，避免 setChecked 触发监听器把当前显示值误写入 SharedPreferences
+            switchMaterial.setOnCheckedChangeListener(null);
             switchMaterial.setChecked(SharedPreferencesUtil.getBoolean(settingSection.id,
                     Boolean.parseBoolean(settingSection.defaultValue)));
+            switchMaterial.setOnCheckedChangeListener(
+                    (buttonView, isChecked) -> SharedPreferencesUtil.putBoolean(settingSection.id, isChecked));
         }
     }
 
