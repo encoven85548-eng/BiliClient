@@ -14,3 +14,9 @@ local.properties
 *.keystore
 dep-tree.txt
 
+# 本地上传脚本，不应上传到 GitHub
+upload_to_github.bat
+
+# 本地上游 CI 配置，无关文件
+.gitea/
+
