@@ -13,7 +13,7 @@
 # 介绍
 由[BiliClient](https://github.com/huanli233/BiliClient)分支而来~~用纯AI生成的git~~修复一些陈年bug~~并新增更多屎山~~
 
-#此项目和Robin编译的终端**做了共存**，不会与官方版本产生冲突~~登录信息等外部因素除外~~
+>此项目和Robin编译的终端**做了共存**，不会与官方版本产生冲突~~登录信息等外部因素除外~~
 
 当前**只有测试版**如果非要删除测试版标识请下载项目ZIP，将\BiliClient-develop\app\build.gradle第5行将int betaVer值改为0并重新编译
 
