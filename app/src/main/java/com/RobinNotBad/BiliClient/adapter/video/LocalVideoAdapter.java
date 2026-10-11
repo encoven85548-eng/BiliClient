@@ -25,6 +25,7 @@ import com.RobinNotBad.BiliClient.util.GlideUtil;
 import com.RobinNotBad.BiliClient.util.MsgUtil;
 import com.RobinNotBad.BiliClient.util.ToolsUtil;
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.DecodeFormat;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
 import com.bumptech.glide.request.RequestOptions;
@@ -159,6 +160,8 @@ public class LocalVideoAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
                 Glide.with(BiliTerminal.context).asDrawable().load(videoCard.cover)
                         .transition(GlideUtil.getTransitionOptions())
                         .apply(RequestOptions.bitmapTransform(new RoundedCorners(ToolsUtil.dp2px(5))))
+                        // 封面按 RGB_565 解码：内存占用减半，手表上少一点 GC 抖动
+                        .format(DecodeFormat.PREFER_RGB_565)
                         .diskCacheStrategy(DiskCacheStrategy.NONE)
                         .into(cover);
             } catch (Exception ignored) {

@@ -72,21 +72,25 @@ public class LocalPageChooseActivity extends BaseActivity {
         adapter.setOnItemLongClickListener(position -> {
             long timestamp = System.currentTimeMillis();
             if (longClickPosition == position && timestamp - longClickTimestamp < 4000) {
-                CenterThreadPool.run(() -> {
-                    File workPath = FileUtil.getVideoDownloadPath();
-                    File videoPath = new File(workPath, title);
-                    File pagePath = new File(videoPath, pageList.get(position));
+                final String pageName = pageList.get(position);
+                final boolean lastPage = pageList.size() == 1;
 
-                    FileUtil.deleteFolder(pagePath);
-                    pageList.remove(position);
-                    videoFileList.remove(position);
-                    danmakuFileList.remove(position);
-                    if (pageList.isEmpty())
-                        FileUtil.deleteFolder(videoPath);
+                // 磁盘操作放后台线程，列表的改动与 notify 全部留在主线程。
+                // 以前是在子线程里 pageList.remove()，同时主线程这边 notifyItemRemoved，
+                // 两边抢同一个 List，RecyclerView 会读到"数量对不上"的中间状态而重新布局，
+                // 表现就是删一次卡一下（偶尔还会报 Adapter 错误）。
+                CenterThreadPool.run(() -> {
+                    File videoPath = new File(FileUtil.getVideoDownloadPath(), title);
+                    FileUtil.deleteFolder(new File(videoPath, pageName));
+                    if (lastPage)
+                        FileUtil.deleteFolder(videoPath); // 最后一集删掉之后把整个文件夹也清掉
                 });
 
+                pageList.remove(position);
+                videoFileList.remove(position);
+                danmakuFileList.remove(position);
+                // notifyItemRemoved 会让后面每一项重新绑定，不需要再 notifyItemRangeChanged
                 adapter.notifyItemRemoved(position);
-                adapter.notifyItemRangeChanged(0, pageList.size() - position);
 
                 MsgUtil.showMsg("删除成功");
                 longClickPosition = -1;

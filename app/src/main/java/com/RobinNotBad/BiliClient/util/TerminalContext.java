@@ -122,6 +122,9 @@ public class TerminalContext {
             videoInfo = VideoInfoApi.getVideoInfo(bvid);
             if (videoInfo != null) {
                 if (saveToCache) {
+                    // 存两个键：getVideoInfoByAidOrBvId() 在只给 bvid 时是按 bvid 查的，
+                    // 以前只按 aid 存，于是同一个视频每次都会重新请求一遍网络（白等一次）。
+                    contentLruCache.put(ContentType.Video.getTypeCode() + "_" + bvid, videoInfo);
                     contentLruCache.put(ContentType.Video.getTypeCode() + "_" + videoInfo.aid, videoInfo);
                 }
                 return Result.success(videoInfo);

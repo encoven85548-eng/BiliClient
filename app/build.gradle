@@ -2,7 +2,26 @@ plugins {
     id 'com.android.application'
 }
 
-int betaVer = 1 //如果为0则是正式版，1为测试版（如为1则应用后缀带beta）
+int betaVer = 0 //如果为0则是正式版，1为测试版（如为1则应用后缀带beta）
+
+// ===== 签名信息（统一从 local.properties 读取，该文件与 key.jks 都在 .gitignore 里）=====
+// 以前这里写的是 pro.getProperty("KEY_PATH")，pro 根本没有定义过，
+// 所以只要 local.properties 里出现了 KEY_PATH，配置阶段就会直接抛 MissingPropertyException，
+// 正式签名永远配不出来。这里改成老老实实读一份 Properties。
+def keystoreProps = new Properties()
+def keystorePropsFile = rootProject.file("local.properties")
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+def signingKeyPath = keystoreProps.getProperty("KEY_PATH")
+def hasSigningKey = signingKeyPath != null && !signingKeyPath.trim().isEmpty()
+def signingKeyFile = null
+if (hasSigningKey) {
+    def f = new File(signingKeyPath.trim())
+    // 相对路径按"项目根目录"解析：KEY_PATH=key.jks 就是 <项目>/key.jks，
+    // 不用管这段代码在哪个模块里（file("key.jks") 在 app 模块里会跑到 app/key.jks 去）
+    signingKeyFile = f.isAbsolute() ? f : rootProject.file(signingKeyPath.trim())
+}
 
 android {
 
@@ -24,8 +43,8 @@ android {
         minSdk 14
         //noinspection ExpiredTargetSdkVersion
         targetSdk 26
-        versionCode 20260925
-        versionName "E-B1.1"
+        versionCode 20261011
+        versionName "E-1.0"
 
         if (betaVer) {
             versionName += "-BETA" + betaVer
@@ -48,14 +67,19 @@ android {
 
     signingConfigs {
         release {
-            def localProps = project.rootProject.file("local.properties")
-            if (localProps.exists() && new Properties() {{
-                load(localProps.newDataInputStream())
-            }}.hasProperty("KEY_PATH")) {
-                storeFile file(pro.getProperty("KEY_PATH") != null ? pro.getProperty("KEY_PATH") : "key.jks")
-                storePassword pro.getProperty("KEY_PASSWORD")
-                keyAlias pro.getProperty("ALIAS_NAME")
-                keyPassword pro.getProperty("ALIAS_PASSWORD")
+            if (hasSigningKey) {
+                storeFile signingKeyFile
+                storePassword keystoreProps.getProperty("KEY_PASSWORD")
+                keyAlias keystoreProps.getProperty("ALIAS_NAME")
+                keyPassword keystoreProps.getProperty("ALIAS_PASSWORD")
+                // V1 / V2 / V3 三种签名方案全部打开：
+                // V1(JAR 签名) 是 Android 7.0 以下唯一认的方案，本项目 minSdk 14，
+                // 装到老手表/老手机上必须有 V1，否则会直接报"解析软件包时出现问题"。
+                // V2/V3 给新系统用，V4（增量安装的 .idsig）用不上，关掉免得生成多余文件。
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+                enableV4Signing false
             }
         }
     }
@@ -67,16 +91,20 @@ android {
             shrinkResources true
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            def localProps = project.rootProject.file("local.properties")
-            if (localProps.exists() && new Properties() {{
-                load(localProps.newDataInputStream())
-            }}.hasProperty("KEY_PATH")) {
+            if (hasSigningKey) {
                 signingConfig signingConfigs.release
             }
         }
         debug {
             buildConfigField "boolean", "BETA", String.valueOf(betaVer > 0)
-            signingConfig signingConfigs.debug
+            // 配了正式密钥时，debug 也用同一把密钥签名。
+            // 否则每台电脑、每个 CI runner 自动生成的 debug keystore 都不一样，
+            // 装同一个应用就会报"软件包签名不存在或被更改"（必须卸载旧包才能装）。
+            if (hasSigningKey) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+            }
         }
     }
 

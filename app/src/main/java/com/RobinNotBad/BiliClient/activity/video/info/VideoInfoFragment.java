@@ -641,28 +641,40 @@ public class VideoInfoFragment extends BaseFragment {
     private void downloadClick() {
         if (!FileUtil.checkStoragePermission()) {
             FileUtil.requestStoragePermission(requireActivity());
-        } else {
-            File downPath = FileUtil.getVideoDownloadPath(videoInfo.title, null);
-
-            if (downPath.exists() && videoInfo.pagenames.size() == 1) {
-                File file_sign = new File(downPath, ".DOWNLOADING");
-                MsgUtil.showMsg(file_sign.exists() ? "已在下载队列\n如有异常，长按可清空文件" : "已下载完成");
-            } else {
-                if (videoInfo.pagenames.size() > 1) {
-                    Intent intent = new Intent();
-                    intent.setClass(requireContext(), MultiPageActivity.class)
-                            .putExtra("download", 1)
-                            .putExtra("data", playerData);
-                    startActivity(intent);
-                } else {
-                    startActivity(new Intent(requireContext(), QualityChooserActivity.class)
-                            .putExtra("page", 0)
-                            .putExtra("aid", videoInfo.aid)
-                            .putExtra("bvid", videoInfo.bvid)
-                    );
-                }
-            }
+            return;
         }
+
+        // 判断"是否已经缓存过"需要读文件系统（路径解析、exists、.DOWNLOADING），
+        // 这些系统调用在手表这种慢速存储上一次就要几十毫秒，以前全在主线程做，
+        // 表现就是点了"缓存"之后要等一下页面才出来，所以整体挪到后台线程，判断完再回主线程开页面。
+        final VideoInfo info = videoInfo;
+        CenterThreadPool.run(() -> {
+            File downPath = FileUtil.getVideoDownloadPath(info.title, null);
+            final boolean singlePage = info.pagenames.size() == 1;
+            final boolean already = downPath.exists() && singlePage;
+            final boolean downloading = already && new File(downPath, ".DOWNLOADING").exists();
+
+            runOnUiThread(() -> {
+                Context context = getContext();
+                if (context == null || !isAdded()) return;
+
+                if (already) {
+                    MsgUtil.showMsg(downloading ? "已在下载队列\n如有异常，长按可清空文件" : "已下载完成");
+                } else if (!singlePage) {
+                    startActivity(new Intent(context, MultiPageActivity.class)
+                            .putExtra("download", 1)
+                            .putExtra("data", playerData));
+                } else {
+                    startActivity(new Intent(context, QualityChooserActivity.class)
+                            .putExtra("page", 0)
+                            .putExtra("aid", info.aid)
+                            .putExtra("bvid", info.bvid)
+                            // 把详情页加载时就已经取好的播放数据一起带过去，里面已经有清晰度列表，
+                            // 选清晰度的页面就不用再等一次 playurl 请求（慢网络上就是那"两秒"）
+                            .putExtra("data", playerData));
+                }
+            });
+        });
     }
 
     private void showCover() {

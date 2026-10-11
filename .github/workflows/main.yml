@@ -1,0 +1,72 @@
+# 说明：
+#   这个工作流和仓库里原来那个 main.yml 一样，push 时自动构建 release APK。
+#   区别是多了"恢复签名密钥"这一步：
+#     - 仓库 Secrets 里配了 KEYSTORE_BASE64 等 4 个值 → 打出来的 APK 就是签好名的，
+#       本机编的包和 CI 编的包用的是同一把密钥，可以互相覆盖安装；
+#     - 没配 → 会自动跳过，产物仍是未签名 APK（和以前一样，不会报错）。
+#
+# 需要在 仓库 → Settings → Secrets and variables → Actions 里加：
+#   KEYSTORE_BASE64   key.jks 的 base64，本机执行下面一行生成（把结果复制进 Secret）：
+#                     [Convert]::ToBase64String([IO.File]::ReadAllBytes("key.jks")) | Set-Clipboard
+#   KEY_PASSWORD      密钥库口令
+#   ALIAS_NAME        别名
+#   ALIAS_PASSWORD    别名口令
+# （具体口令与别名写在 local.properties 里，那个文件不入库，不要写进这个文件）
+name: Build APK
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'  # 关键：拉取子模块
+
+    - name: Set up JDK 11
+      uses: actions/setup-java@v4
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+
+    # 有 Secrets 就配置签名，没有就跳过（不会让构建失败）
+    - name: Restore signing key
+      env:
+        KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        ALIAS_NAME: ${{ secrets.ALIAS_NAME }}
+        ALIAS_PASSWORD: ${{ secrets.ALIAS_PASSWORD }}
+      run: |
+        if [ -z "$KEYSTORE_BASE64" ]; then
+          echo "未配置签名 Secrets，跳过签名（产物为未签名 APK）"
+          exit 0
+        fi
+        echo "$KEYSTORE_BASE64" | base64 -d > key.jks
+        if [ -n "$ANDROID_HOME" ]; then echo "sdk.dir=$ANDROID_HOME" >> local.properties; fi
+        {
+          echo "KEY_PATH=key.jks"
+          echo "KEY_PASSWORD=$KEY_PASSWORD"
+          echo "ALIAS_NAME=$ALIAS_NAME"
+          echo "ALIAS_PASSWORD=$ALIAS_PASSWORD"
+        } >> local.properties
+        echo "签名信息已写入 local.properties"
+
+    - name: Build with Gradle
+      run: |
+        chmod +x gradlew
+        ./gradlew assembleRelease --no-daemon
+
+    # 打印实际使用的签名方案（V1/V2/V3），未签名时只提示不失败
+    - name: Check APK signature
+      run: |
+        APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+        APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | tail -1)
+        "$APKSIGNER" verify --verbose --print-certs "$APK" \
+          || echo "（这个 APK 没有签名，或校验未通过，请看上面的输出）"
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-release
+        path: app/build/outputs/apk/release/*.apk

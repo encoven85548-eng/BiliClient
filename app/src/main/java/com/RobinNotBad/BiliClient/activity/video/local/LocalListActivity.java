@@ -56,31 +56,48 @@ public class LocalListActivity extends InstanceActivity {
             FileUtil.requestStoragePermission(this);
         }
 
-        CenterThreadPool.run(() -> {
-            runOnUiThread(() -> swipeRefreshLayout.setRefreshing(true));
-            scan(FileUtil.getVideoDownloadPath());
-            adapter = new LocalVideoAdapter(this, videoList);
+        // 先把 adapter 挂上去：列表、下拉刷新立刻就能用（此时列表里只有"下载列表"入口），
+        // 目录扫描放到后面异步做，扫完再把条目插进来。
+        // 以前是等 scan() 扫完整个缓存目录才 setAdapter，慢速存储上打开"缓存"页要空等一两秒才有内容。
+        adapter = new LocalVideoAdapter(this, videoList);
 
-            adapter.setOnLongClickListener(position -> {
-                long timestamp = System.currentTimeMillis();
-                if (longClickPosition == position && timestamp - longClickTimestamp < 4000) {
-                    File file = new File(FileUtil.getVideoDownloadPath(), videoList.get(position).title);
-                    CenterThreadPool.run(() -> FileUtil.deleteFolder(file));
-                    MsgUtil.showMsg("删除成功");
-                    videoList.remove(position);
-                    adapter.notifyItemRemoved(position + 1);
-                    adapter.notifyItemRangeChanged(position + 1, videoList.size() - position);
-                    longClickPosition = -1;
-                    checkEmpty();
-                } else {
-                    longClickPosition = position;
-                    longClickTimestamp = timestamp;
-                    MsgUtil.showMsg("再次长按删除");
-                }
-            });
+        adapter.setOnLongClickListener(position -> {
+            long timestamp = System.currentTimeMillis();
+            if (longClickPosition == position && timestamp - longClickTimestamp < 4000) {
+                // 先把文件夹名取出来：下面 remove 之后 position 就可能越界了
+                final String title = videoList.get(position).title;
+
+                // 磁盘相关的操作全部丢到后台线程。
+                // FileUtil.getVideoDownloadPath() 里有 nomedia 的 exists/createNewFile/delete，
+                // 在手表这种慢速存储上每个都是几十毫秒级的系统调用，放在主线程就是"删一次卡一下"。
+                CenterThreadPool.run(() -> FileUtil.deleteFolder(
+                        new File(FileUtil.getVideoDownloadPath(), title)));
+
+                MsgUtil.showMsg("删除成功");
+                videoList.remove(position);
+                // notifyItemRemoved 已经会让后面每一项都重新绑定一次，
+                // 再补一个 notifyItemRangeChanged 只会额外触发一批"变化动画"（每项都要多造一个 View），
+                // 低端设备上正好就是那一下卡顿的来源，所以去掉。
+                adapter.notifyItemRemoved(position + 1);
+                longClickPosition = -1;
+                checkEmpty();
+            } else {
+                longClickPosition = position;
+                longClickTimestamp = timestamp;
+                MsgUtil.showMsg("再次长按删除");
+            }
+        });
+
+        recyclerView.setLayoutManager(getLayoutManager());
+        recyclerView.setAdapter(adapter);
+        // 等一次布局之后再开转圈，否则 SwipeRefreshLayout 可能算不出指示器的位置
+        swipeRefreshLayout.post(() -> swipeRefreshLayout.setRefreshing(true));
+
+        CenterThreadPool.run(() -> {
+            scan(FileUtil.getVideoDownloadPath());
             runOnUiThread(() -> {
-                recyclerView.setLayoutManager(getLayoutManager());
-                recyclerView.setAdapter(adapter);
+                // 刚打开时列表必定是空的，所以全部都是"新增"，用插入通知比 notifyDataSetChanged 便宜得多
+                adapter.notifyItemRangeInserted(1, videoList.size());
                 swipeRefreshLayout.setRefreshing(false);
                 started = true;
             });
@@ -169,15 +186,19 @@ public class LocalListActivity extends InstanceActivity {
         });
     }
 
+    @SuppressLint("NotifyDataSetChanged")
     public void refresh() {
         if (started)
             CenterThreadPool.run(() -> {
                 runOnUiThread(() -> swipeRefreshLayout.setRefreshing(true));
-                int oldSize = videoList.size();
                 videoList.clear();
                 scan(FileUtil.getVideoDownloadPath());
                 runOnUiThread(() -> {
-                    adapter.notifyItemRangeChanged(1, oldSize);
+                    // 整个列表都重新扫过了、对象全是新的，必须整体刷新。
+                    // 以前用的是 notifyItemRangeChanged(1, 旧长度)：长度对不上时位置会错乱，
+                    // 而且每一项都会跑一次"变化动画"（每项要多复制一个 View、重新加载封面），
+                    // 低性能设备上就是刷新一下卡一下。这里只重绑、不做变化动画。
+                    adapter.notifyDataSetChanged();
                     swipeRefreshLayout.setRefreshing(false);
                 });
             });

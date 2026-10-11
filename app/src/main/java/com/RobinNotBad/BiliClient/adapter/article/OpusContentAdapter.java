@@ -20,6 +20,7 @@ import com.RobinNotBad.BiliClient.R;
 import com.RobinNotBad.BiliClient.activity.ImageViewerActivity;
 import com.RobinNotBad.BiliClient.activity.user.info.UserInfoActivity;
 import com.RobinNotBad.BiliClient.api.ArticleApi;
+import com.RobinNotBad.BiliClient.api.DynamicApi;
 import com.RobinNotBad.BiliClient.model.Opus;
 import com.RobinNotBad.BiliClient.model.OpusParagraph;
 import com.RobinNotBad.BiliClient.util.CenterThreadPool;
@@ -231,9 +232,21 @@ public class OpusContentAdapter extends RecyclerView.Adapter<OpusContentAdapter.
                 TextView favLabel = holder.itemView.findViewById(R.id.fav_label);
                 ImageButton fav = holder.itemView.findViewById(R.id.btn_fav);
 
+                // 这个页面既显示专栏，也显示"图文/纯图片动态"（动态列表点进来的就是后者）。
+                // 两者的点赞接口不一样：专栏是 x/article/like（参数为 cvid），
+                // 动态必须用 dynamic_like/thumb（参数为 dynamic_id）。
+                // 以前这里一律调用专栏接口，导致图文动态点赞固定返回 -404。
+                final boolean isDynamic = (article.type == Opus.TYPE_DYNAMIC);
+
                 likeLabel.setText(StringUtil.toWan(article.stats.like));
                 coinLabel.setText(StringUtil.toWan(article.stats.coin));
                 favLabel.setText(StringUtil.toWan(article.stats.favorite));
+
+                // 进入页面时按服务器返回的状态回显图标，否则已点赞的动态看起来像没点过
+                like.setImageResource(article.stats.liked ? R.drawable.icon_like_1 : R.drawable.icon_like_0);
+                fav.setImageResource(article.stats.favoured ? R.drawable.icon_fav_1 : R.drawable.icon_fav_0);
+                if (article.stats.coined != 0)
+                    coin.setImageResource(R.drawable.icon_coin_1);
 
                 like.setOnClickListener(view1 -> CenterThreadPool.run(() -> {
                     try {
@@ -241,7 +254,9 @@ public class OpusContentAdapter extends RecyclerView.Adapter<OpusContentAdapter.
                             context.runOnUiThread(() -> MsgUtil.showMsg("还没有登录喵~"));
                             return;
                         }
-                        int result = ArticleApi.like(article.id, !article.stats.liked);
+                        int result = isDynamic
+                                ? DynamicApi.likeDynamic(article.id, !article.stats.liked)
+                                : ArticleApi.like(article.id, !article.stats.liked);
                         if (result == 0) {
                             article.stats.liked = !article.stats.liked;
                             context.runOnUiThread(() -> {

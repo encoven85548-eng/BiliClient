@@ -347,6 +347,11 @@
             android:screenOrientation="locked"
             android:theme="@style/Theme.NoSwipe.AppCompat" />
         <activity
+            android:name=".activity.ChooseDialogActivity"
+            android:exported="false"
+            android:label="选择"
+            android:screenOrientation="locked" />
+        <activity
             android:name=".activity.InteractionDebugActivity"
             android:exported="false"
             android:label="互动视频变量调试"

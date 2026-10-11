@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  通用「提示 + 选择」页（替代系统 AlertDialog）。
+  低性能/圆表设备上系统对话框会出现显示不全、DPI 过大被裁切、甚至控件被系统精简掉而崩溃的问题，
+  所以这里改成应用自己的页面：顶栏 + 可滚动的内容区 + 若干与设置页一致的按钮卡片。
+-->
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <RelativeLayout
+        android:id="@+id/top"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true">
+
+        <TextView
+            android:id="@+id/pageName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentLeft="true"
+            android:layout_marginVertical="3dp"
+            android:layout_marginStart="8dp"
+            android:layout_toStartOf="@id/timeText"
+            android:layout_toLeftOf="@id/timeText"
+            android:lines="1"
+            android:text="@string/pagename_dialog"
+            android:textStyle="bold"
+            app:drawableStartCompat="@drawable/arrow_back" />
+
+        <com.RobinNotBad.BiliClient.ui.widget.TextClock
+            android:id="@+id/timeText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginVertical="3dp"
+            android:layout_alignParentRight="true"
+            android:layout_alignParentEnd="true" />
+
+    </RelativeLayout>
+
+    <com.RobinNotBad.BiliClient.ui.widget.RotaryScrollView
+        android:id="@+id/scrollView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/top">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingLeft="@dimen/activity_padding_horizontal"
+            android:paddingRight="@dimen/activity_padding_horizontal"
+            android:paddingStart="@dimen/activity_padding_horizontal"
+            android:paddingEnd="@dimen/activity_padding_horizontal"
+            android:paddingTop="2dp"
+            android:paddingBottom="12dp">
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/contentCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:alpha="0.8">
+
+                <TextView
+                    android:id="@+id/content"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="8dp"
+                    android:alpha="0.88"
+                    android:textSize="13sp" />
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <LinearLayout
+                android:id="@+id/chooseLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:orientation="vertical" />
+
+        </LinearLayout>
+
+    </com.RobinNotBad.BiliClient.ui.widget.RotaryScrollView>
+
+</RelativeLayout>

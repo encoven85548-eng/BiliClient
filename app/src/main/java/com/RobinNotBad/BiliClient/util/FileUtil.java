@@ -32,7 +32,7 @@ public class FileUtil {
     }
 
     public static void deleteFolder(File folder) {
-        if (!folder.exists()) return;
+        if (folder == null || !folder.exists()) return;
 
         if (folder.isFile()) {
             folder.delete();
@@ -40,15 +40,19 @@ public class FileUtil {
         }
 
         File[] templist = folder.listFiles();
-        assert templist != null;
+        if (templist == null) return;
+
         for (File file : templist) {
             if (file.isFile()) {   //如果该项是文件，直接删除
                 file.delete();
             } else {    //如果该项是目录
-                if (Objects.requireNonNull(file.listFiles()).length != 0)
-                    deleteFolder(file);    //如果子文件夹不是空的，继续扫描下去，实现套娃效果
+                // 直接递归：deleteFolder 自己会处理空目录。
+                // 以前这里先用 listFiles 判断是否为空、为空就不进去，导致空文件夹永远不会被删掉，
+                // 母文件夹也就删不干净；同时还多了一次 listFiles，低性能设备上删除成百上千个文件时很吃亏。
+                deleteFolder(file);
             }
-            Log.e("debug", file.toString());
+            // 以前每个文件都会打一条 Log.e，递归删除时打日志本身就非常耗时，改成仅在调试日志开启时输出
+            if (Logu.LOGV_ENABLED) Log.v("debug", file.toString());
         }
         folder.delete();
     }
@@ -95,9 +99,21 @@ public class FileUtil {
 
         try {
             File nomedia = new File(path, ".nomedia");
-            if (SharedPreferencesUtil.getBoolean("save_ban_gallery", true) && !nomedia.exists())
-                nomedia.createNewFile();
-            else if (nomedia.exists()) nomedia.delete();
+            // 【重要】这里原来的写法是：
+            //     if (save_ban_gallery && !nomedia.exists()) nomedia.createNewFile();
+            //     else if (nomedia.exists()) nomedia.delete();
+            // 开关打开（默认就是打开）时，第二次调用会因为 !exists() 为假而落到 else 分支，
+            // 把刚建好的 .nomedia 又删掉；第三次再建、第四次再删……
+            // 也就是每调用一次就在外部存储上真写/真删一个文件，严格一次create一次delete来回抖。
+            // 而 getVideoDownloadPath() 会在"点缓存按钮、打开缓存列表、删除缓存视频"时被调用，
+            // 于是表现出来正好就是"一次流畅一次卡顿"（createNewFile 还可能触发媒体库重扫，特别慢）。
+            // 正确逻辑：开关开着就保证文件存在，关着就保证文件不存在，状态对了就什么都不做。
+            boolean banGallery = SharedPreferencesUtil.getBoolean("save_ban_gallery", true);
+            if (banGallery) {
+                if (!nomedia.exists()) nomedia.createNewFile();
+            } else if (nomedia.exists()) {
+                nomedia.delete();
+            }
         } catch (Exception ignored) {
         }
         return path;
@@ -176,6 +192,11 @@ public class FileUtil {
         return new File(getBiliClientDir(), "guide.txt");
     }
 
+    /** 获取搜索历史备份文件：/Documents/BiliClient/SearchRecords.txt */
+    public static File getSearchRecordsFile() {
+        return new File(getBiliClientDir(), "SearchRecords.txt");
+    }
+
     /** 获取登录信息文件：/Documents/BiliClient/login.txt（即使未登录也会创建） */
     public static File getLoginFile() {
         File file = new File(getBiliClientDir(), "login.txt");
@@ -224,13 +245,15 @@ public class FileUtil {
     }
 
     /**
-     * 检测 /Documents/BiliClient 内是否存在可用的备份文件（setting.txt 或 guide.txt 非空）
+     * 检测 /Documents/BiliClient 内是否存在可用的备份文件（setting.txt / guide.txt / SearchRecords.txt 非空）
      */
     public static boolean hasBackupFiles() {
         String setting = readString(getSettingFile());
         if (setting != null && !setting.isEmpty()) return true;
         String guide = readString(getGuideFile());
-        return guide != null && !guide.isEmpty();
+        if (guide != null && !guide.isEmpty()) return true;
+        String search = readString(getSearchRecordsFile());
+        return search != null && !search.isEmpty();
     }
 
     public static String getFileFirstName(String file) {

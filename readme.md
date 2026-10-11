@@ -12,9 +12,6 @@
 
 # 介绍
 由[BiliClient](https://github.com/huanli233/BiliClient)分支而来~~用纯AI生成的git~~修复一些陈年bug~~并新增更多屎山~~
-
->此项目和Robin编译的终端**做了共存**，不会与官方版本产生冲突~~登录信息等外部因素除外~~
-
 当前**只有测试版**如果非要删除测试版标识请下载项目ZIP，将\BiliClient-develop\app\build.gradle第5行将int betaVer值改为0并重新编译
 
 这是一个**极其轻量级**的**B站客户端**，名字来源于原神中的“虚空终端”。使用远古技术 `java` + `xml`开发，最低支持**安卓4.0.4**。（部分4.0.4设备无法运行，但也无法解决）~~这么古老的设备解码视频都费劲，要不还是留作收藏吧（~~
@@ -68,14 +65,7 @@
 > 友情链接：**WearBili** 现已推出**重制版**：[Re:WearBili](https://github.com/SpaceXC/Re-WearBili)，全新UI和动效，流畅度也有所改善，欢迎前往搜索与体验！
 
 # 联系
- 
-- 唯一官网：[biliterminal.cn](https://biliterminal.cn)
-- QQ交流群
-> 交流一群：482091687
->
-> 交流二群：656364457
->
-> 测试群：745414928
+~~这里什么都没有~~
 
 # 开发
 
